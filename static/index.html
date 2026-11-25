@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HybridOps Edge | Firebase AI Logic + Python FastAPI</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --card: #131a31;
+      --border: #253054;
+      --text: #e6ecff;
+      --muted: #93a3c8;
+      --accent: #3b82f6;
+      --green: #10b981;
+      --amber: #f59e0b;
+      --red: #ef4444;
+    }
+    * { box-sizing: border-box; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+    body { margin: 0; background: var(--bg); color: var(--text); padding: 24px; }
+    .container { max-width: 1140px; margin: 0 auto; }
+    header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 14px; }
+    h1 { margin: 0; font-size: 1.45rem; }
+    .badge { padding: 6px 12px; border-radius: 999px; font-size: 0.8rem; font-weight: 600; background: #1e293b; border: 1px solid var(--border); }
+    .grid { display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 20px; }
+    @media (max-width: 920px) { .grid { grid-template-columns: 1fr; } }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 18px; margin-bottom: 18px; }
+    label { display: block; font-size: 0.82rem; color: var(--muted); margin-bottom: 5px; margin-top: 10px; }
+    input, textarea, select { width: 100%; background: #0d1326; color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; font-size: 0.9rem; }
+    textarea { min-height: 96px; resize: vertical; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    button { margin-top: 14px; background: var(--accent); color: white; border: none; border-radius: 8px; padding: 11px 16px; font-weight: 600; cursor: pointer; width: 100%; font-size: 0.92rem; }
+    button:hover { opacity: 0.92; }
+    button.secondary { background: #1e293b; border: 1px solid var(--border); margin-top: 8px; }
+    .metrics { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .metric-box { background: #0d1326; border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
+    .metric-val { font-size: 1.35rem; font-weight: 700; margin-top: 4px; }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 0.75rem; font-weight: 700; margin-left: 4px; }
+    .on-device { background: rgba(16, 185, 129, 0.18); color: var(--green); }
+    .cloud, .simulated-fallback { background: rgba(59, 130, 246, 0.18); color: #60a5fa; }
+    .CRITICAL { background: rgba(239, 68, 68, 0.2); color: var(--red); }
+    .HIGH { background: rgba(245, 158, 11, 0.2); color: var(--amber); }
+    .MEDIUM, .LOW { background: rgba(16, 185, 129, 0.15); color: var(--green); }
+    pre { white-space: pre-wrap; background: #0d1326; padding: 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 0.84rem; line-height: 1.45; }
+    .history-item { border-top: 1px solid var(--border); padding-top: 10px; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <h1>HybridOps Edge — Hybrid AI Incident & SLA Copilot</h1>
+        <small style="color: var(--muted);">Firebase AI Logic Hybrid Inference (Gemini Nano On-Device + Cloud Fallback) + Python FastAPI</small>
+      </div>
+      <span id="sdkStatus" class="badge">Local hybrid fallback active (no Firebase config set)</span>
+    </header>
+
+    <div class="grid">
+      <div>
+        <div class="card">
+          <h3 style="margin-top:0;">1. Firebase AI Logic & App Check Config</h3>
+          <div class="row">
+            <div>
+              <label>Firebase API Key</label>
+              <input id="fbApiKey" placeholder="AIzaSy..." />
+            </div>
+            <div>
+              <label>Firebase Project ID</label>
+              <input id="fbProjectId" placeholder="your-project-id" />
+            </div>
+          </div>
+          <div class="row">
+            <div>
+              <label>Firebase App ID</label>
+              <input id="fbAppId" placeholder="1:123456789:web:abcdef" />
+            </div>
+            <div>
+              <label>App Check Debug Token / Site Key</label>
+              <input id="fbAppCheck" placeholder="debug-token or reCAPTCHA key" />
+            </div>
+          </div>
+          <button id="connectFbBtn" type="button" class="secondary">Bind Firebase AI Logic SDK</button>
+        </div>
+
+        <div class="card">
+          <h3 style="margin-top:0;">2. Incident Triage & Hybrid Routing</h3>
+          <div class="row">
+            <div>
+              <label>Ticket ID</label>
+              <input id="ticketId" value="INC-4092" />
+            </div>
+            <div>
+              <label>SLA Minutes Remaining</label>
+              <input id="slaMinutes" type="number" value="30" />
+            </div>
+          </div>
+          <label>Incident Title</label>
+          <input id="incidentTitle" value="Dell Precision workstation no video signal (amber 2,1 LED)" />
+          <label>Operations Blocked?</label>
+          <select id="businessBlocked">
+            <option value="true" selected>Yes - Critical Operation Blocked</option>
+            <option value="false">No - Degraded / Non-blocking</option>
+          </select>
+          <label>Diagnostic Logs</label>
+          <textarea id="rawLogs">Workstation powers on with fans spinning, no display output, amber LED 2,1. IP: 10.24.18.92.</textarea>
+          <button id="runTriageBtn" type="button">Run Hybrid Triage</button>
+          <pre id="outBox">Waiting for triage execution...</pre>
+        </div>
+      </div>
+
+      <div>
+        <div class="card">
+          <h3 style="margin-top:0;">Hybrid Telemetry (Python FastAPI)</h3>
+          <div class="metrics">
+            <div class="metric-box">
+              <div style="color:var(--muted); font-size:0.78rem;">Total Triaged</div>
+              <div id="mTotal" class="metric-val">0</div>
+            </div>
+            <div class="metric-box">
+              <div style="color:var(--muted); font-size:0.78rem;">On-Device Ratio</div>
+              <div id="mRatio" class="metric-val">0%</div>
+            </div>
+            <div class="metric-box">
+              <div style="color:var(--muted); font-size:0.78rem;">Avg On-Device Latency</div>
+              <div id="mOdLat" class="metric-val">0 ms</div>
+            </div>
+            <div class="metric-box">
+              <div style="color:var(--muted); font-size:0.78rem;">Avg Cloud / Fallback Latency</div>
+              <div id="mClLat" class="metric-val">0 ms</div>
+            </div>
+          </div>
+          <button id="refreshBtn" type="button" class="secondary">Refresh Telemetry & Audit Log</button>
+        </div>
+
+        <div class="card">
+          <h3 style="margin-top:0;">Audited Triage History</h3>
+          <div id="historyList" style="color:var(--muted); font-size:0.86rem;">No records yet.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="/static/app.js"></script>
+</body>
+</html>
